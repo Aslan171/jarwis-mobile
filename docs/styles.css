@@ -31,7 +31,7 @@ a { color: inherit; }
 
 main { overflow: hidden; }
 .hero {
-  min-height: 92svh;
+  min-height: 82svh;
   padding: max(110px, calc(82px + env(safe-area-inset-top))) 24px 72px;
   display: flex;
   flex-direction: column;
@@ -46,7 +46,7 @@ main { overflow: hidden; }
 h1, h2 { margin: 0; letter-spacing: 0; }
 h1 { font-size: clamp(42px, 9vw, 82px); line-height: 1; }
 h2 { font-size: clamp(28px, 5vw, 44px); }
-.lead { width: min(680px, 100%); margin: 22px auto 0; color: #c9c9c9; font-size: clamp(17px, 2.2vw, 22px); line-height: 1.55; }
+.lead { width: min(680px, 100%); margin: 22px auto 0; color: #c9c9c9; font-size: clamp(17px, 2.2vw, 22px); line-height: 1.55; overflow-wrap: anywhere; }
 .actions { margin-top: 34px; display: flex; flex-direction: column; align-items: center; gap: 13px; }
 .download { min-width: 220px; padding: 15px 24px; border-radius: 8px; background: #fff; color: #000; font-weight: 750; text-decoration: none; }
 .download:hover { background: #dedede; }
@@ -70,7 +70,7 @@ footer a { text-underline-offset: 4px; }
 
 @media (max-width: 720px) {
   .topbar { height: 60px; }
-  .hero { min-height: 88svh; padding-top: 96px; }
+  .hero { min-height: 82svh; padding-top: 96px; }
   .hero-logo { width: 132px; }
   .step-grid { grid-template-columns: 1fr; }
   .step-grid li { min-height: 0; }
