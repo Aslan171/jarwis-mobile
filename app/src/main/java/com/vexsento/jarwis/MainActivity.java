@@ -32,6 +32,11 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanner;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
+
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -61,6 +66,7 @@ public final class MainActivity extends Activity {
     private EditText addressInput;
     private TextView connectionStatus;
     private ProgressBar progressBar;
+    private Button qrScanButton;
     private Button scanButton;
     private String currentBaseUrl = "";
     private ValueCallback<Uri[]> fileCallback;
@@ -80,11 +86,13 @@ public final class MainActivity extends Activity {
         addressInput = findViewById(R.id.server_address);
         connectionStatus = findViewById(R.id.connection_status);
         progressBar = findViewById(R.id.connection_progress);
+        qrScanButton = findViewById(R.id.qr_scan_button);
         scanButton = findViewById(R.id.scan_button);
         Button connectButton = findViewById(R.id.connect_button);
         ImageButton settingsButton = findViewById(R.id.server_settings_button);
 
         configureWebView();
+        qrScanButton.setOnClickListener(view -> startQrScanner());
         connectButton.setOnClickListener(view -> connectTo(addressInput.getText().toString(), false));
         scanButton.setOnClickListener(view -> startNetworkScan());
         settingsButton.setOnClickListener(view -> showSetup("Можно выбрать другой компьютер Jarwis."));
@@ -97,8 +105,7 @@ public final class MainActivity extends Activity {
             addressInput.setText(savedUrl);
             connectTo(savedUrl, true);
         } else {
-            showSetup("Ищу Jarwis в текущей Wi-Fi сети…");
-            startNetworkScan();
+            showSetup("Нажми «Сканировать QR» и наведи камеру на код, открытый на компьютере.");
         }
     }
 
@@ -141,11 +148,15 @@ public final class MainActivity extends Activity {
         }
 
         setBusy(true, "Проверяю " + normalized.replace("http://", "") + "…");
+        String sessionCookie = CookieManager.getInstance().getCookie(normalized);
         ioExecutor.execute(() -> {
             boolean available = probeJarwis(normalized);
+            boolean authorized = !quietFailure || probeAuthorizedJarwis(normalized, sessionCookie);
             runOnUiThread(() -> {
-                if (available) {
+                if (available && authorized) {
                     openJarwis(normalized);
+                } else if (available) {
+                    showSetup("Компьютер найден, но вход ещё не подтверждён. Нажми «Сканировать QR».");
                 } else {
                     String message = quietFailure
                             ? "Сохранённый компьютер сейчас недоступен. Ищу другой Jarwis в сети…"
@@ -183,6 +194,33 @@ public final class MainActivity extends Activity {
                 });
             });
         });
+    }
+
+    private void startQrScanner() {
+        cancelScan();
+        setBusy(true, "Открываю камеру…");
+        GmsBarcodeScannerOptions options = new GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom()
+                .build();
+        GmsBarcodeScanner scanner = GmsBarcodeScanning.getClient(this, options);
+        scanner.startScan()
+                .addOnSuccessListener(barcode -> {
+                    String rawValue = barcode.getRawValue();
+                    if (rawValue == null || rawValue.isBlank()) {
+                        showSetup("QR-код пустой. Отсканируй код, который Jarwis показывает на компьютере.");
+                        return;
+                    }
+                    try {
+                        pairAndConnect(PairingLink.parse(rawValue));
+                    } catch (IllegalArgumentException error) {
+                        showSetup("Это не QR-код подключения Jarwis. Открой мобильный режим на компьютере и попробуй снова.");
+                    }
+                })
+                .addOnCanceledListener(() -> showSetup("Сканирование отменено."))
+                .addOnFailureListener(error -> showSetup(
+                        "Не удалось открыть сканер. Проверь Google Play Services или используй обычную камеру телефона."
+                ));
     }
 
     private PairingResult requestPairing(PairingLink link) {
@@ -244,8 +282,11 @@ public final class MainActivity extends Activity {
             scanExecutor.submit(() -> {
                 try {
                     if (!found.get() && probeJarwis(candidate) && found.compareAndSet(false, true)) {
-                        runOnUiThread(() -> openJarwis(candidate));
-                        cancelScan();
+                        runOnUiThread(() -> {
+                            addressInput.setText(candidate);
+                            showSetup("Компьютер найден. Для защищённого входа нажми «Сканировать QR».");
+                            cancelScan();
+                        });
                     }
                 } finally {
                     if (remaining.decrementAndGet() == 0 && !found.get()) {
@@ -290,6 +331,28 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private boolean probeAuthorizedJarwis(String baseUrl, String sessionCookie) {
+        if (sessionCookie == null || !sessionCookie.contains("jarwis_mobile_session=")) {
+            return false;
+        }
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) URI.create(baseUrl + "api/bootstrap").toURL().openConnection();
+            connection.setConnectTimeout(900);
+            connection.setReadTimeout(1200);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Cookie", sessionCookie);
+            return connection.getResponseCode() == HttpURLConnection.HTTP_OK;
+        } catch (Exception ignored) {
+            return false;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
     private String localIpv4Prefix() {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         Network activeNetwork = manager.getActiveNetwork();
@@ -323,12 +386,16 @@ public final class MainActivity extends Activity {
         setBusy(false, message);
         browserPanel.setVisibility(View.GONE);
         setupPanel.setVisibility(View.VISIBLE);
+        qrScanButton.setEnabled(true);
         scanButton.setEnabled(true);
     }
 
     private void setBusy(boolean busy, String message) {
         progressBar.setVisibility(busy ? View.VISIBLE : View.GONE);
         connectionStatus.setText(message);
+        if (qrScanButton != null) {
+            qrScanButton.setEnabled(!busy);
+        }
     }
 
     private void cancelScan() {

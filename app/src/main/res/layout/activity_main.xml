@@ -65,11 +65,32 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
+            <Button
+                android:id="@+id/qr_scan_button"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/button_primary"
+                android:text="@string/scan_qr"
+                android:textAllCaps="false"
+                android:textColor="@color/black"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:gravity="center"
+                android:text="@string/manual_fallback"
+                android:textColor="@color/text_muted"
+                android:textSize="13sp" />
+
             <EditText
                 android:id="@+id/server_address"
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="10dp"
                 android:background="@drawable/input_background"
                 android:hint="@string/address_hint"
                 android:inputType="textUri"
@@ -85,10 +106,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="54dp"
                 android:layout_marginTop="14dp"
-                android:background="@drawable/button_primary"
+                android:background="@drawable/button_secondary"
                 android:text="@string/connect"
                 android:textAllCaps="false"
-                android:textColor="@color/black"
+                android:textColor="@color/white"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
