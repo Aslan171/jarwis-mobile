@@ -35,6 +35,7 @@ import android.widget.Toast;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -88,11 +89,10 @@ public final class MainActivity extends Activity {
         scanButton.setOnClickListener(view -> startNetworkScan());
         settingsButton.setOnClickListener(view -> showSetup("Можно выбрать другой компьютер Jarwis."));
 
-        String deepLinkUrl = deepLinkServerUrl(getIntent());
+        PairingLink pairingLink = pairingLinkFromIntent(getIntent());
         String savedUrl = preferences.getString(PREF_SERVER_URL, "");
-        if (!deepLinkUrl.isEmpty()) {
-            addressInput.setText(deepLinkUrl);
-            connectTo(deepLinkUrl, false);
+        if (pairingLink != null) {
+            pairAndConnect(pairingLink);
         } else if (!savedUrl.isEmpty()) {
             addressInput.setText(savedUrl);
             connectTo(savedUrl, true);
@@ -106,10 +106,9 @@ public final class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        String deepLinkUrl = deepLinkServerUrl(intent);
-        if (!deepLinkUrl.isEmpty()) {
-            addressInput.setText(deepLinkUrl);
-            connectTo(deepLinkUrl, false);
+        PairingLink pairingLink = pairingLinkFromIntent(intent);
+        if (pairingLink != null) {
+            pairAndConnect(pairingLink);
         }
     }
 
@@ -122,7 +121,7 @@ public final class MainActivity extends Activity {
         settings.setDatabaseEnabled(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " JarwisAndroid/1.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " JarwisAndroid/1.1");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
@@ -158,6 +157,72 @@ public final class MainActivity extends Activity {
                 }
             });
         });
+    }
+
+    private void pairAndConnect(PairingLink link) {
+        cancelScan();
+        addressInput.setText(link.serverUrl());
+        setupPanel.setVisibility(View.VISIBLE);
+        browserPanel.setVisibility(View.GONE);
+        setBusy(true, "Подключаю телефон к Jarwis…");
+        ioExecutor.execute(() -> {
+            PairingResult result = requestPairing(link);
+            runOnUiThread(() -> {
+                if (!result.connected) {
+                    showSetup(result.errorMessage);
+                    return;
+                }
+                CookieManager cookieManager = CookieManager.getInstance();
+                cookieManager.setCookie(link.serverUrl(), result.cookie, accepted -> {
+                    if (!Boolean.TRUE.equals(accepted)) {
+                        showSetup("Android не сохранил защищённую сессию. Повтори сканирование QR-кода.");
+                        return;
+                    }
+                    cookieManager.flush();
+                    openJarwis(link.serverUrl());
+                });
+            });
+        });
+    }
+
+    private PairingResult requestPairing(PairingLink link) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) URI.create(
+                    link.serverUrl() + "api/mobile/pair"
+            ).toURL().openConnection();
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setConnectTimeout(3500);
+            connection.setReadTimeout(4500);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            byte[] body = ("{\"code\":\"" + link.pairingCode() + "\"}").getBytes(StandardCharsets.UTF_8);
+            connection.setFixedLengthStreamingMode(body.length);
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(body);
+            }
+
+            int status = connection.getResponseCode();
+            if (status == HttpURLConnection.HTTP_FORBIDDEN) {
+                return PairingResult.error("QR-код неверный или истёк. Перезапусти мобильный режим на ПК и отсканируй новый QR.");
+            }
+            if (status != HttpURLConnection.HTTP_OK) {
+                return PairingResult.error("ПК отклонил подключение. Перезапусти start_jarwis_mobile.cmd и попробуй снова.");
+            }
+            String cookie = connection.getHeaderField("Set-Cookie");
+            if (cookie == null || !cookie.startsWith("jarwis_mobile_session=")) {
+                return PairingResult.error("ПК не выдал защищённую сессию. Перезапусти мобильный режим Jarwis.");
+            }
+            return PairingResult.connected(cookie);
+        } catch (Exception error) {
+            return PairingResult.error("Телефон не видит ПК. Проверь, что оба устройства подключены к одной Wi-Fi сети.");
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
     }
 
     private void startNetworkScan() {
@@ -276,12 +341,35 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private String deepLinkServerUrl(Intent intent) {
-        Uri data = intent == null ? null : intent.getData();
-        if (data == null || !"jarwis".equals(data.getScheme()) || !"connect".equals(data.getHost())) {
-            return "";
+    private PairingLink pairingLinkFromIntent(Intent intent) {
+        if (intent == null || intent.getDataString() == null) {
+            return null;
         }
-        return data.getQueryParameter("url") == null ? "" : data.getQueryParameter("url");
+        try {
+            return PairingLink.parse(intent.getDataString());
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private static final class PairingResult {
+        private final boolean connected;
+        private final String cookie;
+        private final String errorMessage;
+
+        private PairingResult(boolean connected, String cookie, String errorMessage) {
+            this.connected = connected;
+            this.cookie = cookie;
+            this.errorMessage = errorMessage;
+        }
+
+        private static PairingResult connected(String cookie) {
+            return new PairingResult(true, cookie, "");
+        }
+
+        private static PairingResult error(String message) {
+            return new PairingResult(false, "", message);
+        }
     }
 
     private boolean isCurrentOrigin(String value) {

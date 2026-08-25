@@ -6,12 +6,14 @@ Download the signed APK from the [latest release](https://github.com/Aslan171/ja
 
 The APK contains no AI model, Telegram token, database credentials or private
 Jarwis source code. It connects only to the owner's Jarwis Web server on a
-private IPv4 network. The server still requires its temporary pairing code and
-signed session cookie.
+private IPv4 network. The PC displays a local-only QR code; scanning it passes
+the private address and temporary pairing code directly to the app, which then
+stores a signed session cookie. Manual address and code entry remain available
+as a fallback.
 
 The phone and the Jarwis PC must currently be connected to the same private
 Wi-Fi network. Remote access outside the home network is not part of version
-1.0.0.
+1.1.0.
 
 ## Build
 

@@ -55,7 +55,7 @@ h2 { font-size: clamp(28px, 5vw, 44px); }
 
 .steps { padding: 84px max(24px, calc((100vw - 1120px) / 2)); border-bottom: 1px solid #202020; }
 .section-heading { margin-bottom: 32px; }
-.step-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.step-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .step-grid li { min-height: 210px; padding: 24px; border: 1px solid #2c2c2c; border-radius: 8px; background: #111; }
 .step-grid span { display: block; margin-bottom: 30px; color: #787878; font: 600 13px ui-monospace, monospace; }
 .step-grid strong { display: block; font-size: 19px; }
