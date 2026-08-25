@@ -14,6 +14,7 @@ import android.net.LinkProperties;
 import android.net.Network;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
@@ -140,6 +141,18 @@ public final class MainActivity extends Activity {
         webView.setWebViewClient(new JarwisWebViewClient());
         webView.setWebChromeClient(new JarwisChromeClient());
         webView.setDownloadListener(new ExternalDownloadListener());
+        webView.setOnTouchListener((view, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                String url = webView.getUrl();
+                if (url != null && isCurrentOrigin(url)) {
+                    webView.evaluateJavascript(
+                            WebViewPagePatch.submitAtScreenPoint(event.getX(), event.getY()),
+                            null
+                    );
+                }
+            }
+            return false;
+        });
     }
 
     private void connectTo(String rawAddress, boolean quietFailure) {

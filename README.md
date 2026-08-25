@@ -13,7 +13,7 @@ remain available as a fallback.
 
 The phone and the Jarwis PC must currently be connected to the same private
 Wi-Fi network. Remote access outside the home network is not part of version
-1.2.1.
+1.2.2.
 
 ## Build
 
