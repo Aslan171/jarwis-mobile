@@ -70,6 +70,8 @@ tasks.register("verifyReleaseSigning") {
     }
 }
 
-tasks.named("assembleRelease").configure {
-    dependsOn("verifyReleaseSigning")
+tasks.configureEach { task ->
+    if (task.name == "assembleRelease") {
+        task.dependsOn("verifyReleaseSigning")
+    }
 }

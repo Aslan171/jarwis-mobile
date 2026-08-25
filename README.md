@@ -2,10 +2,16 @@
 
 Android client and public download page for Jarwis 1.0.
 
+Download the signed APK from the [latest release](https://github.com/Aslan171/jarwis-mobile/releases/latest/download/Jarwis.apk).
+
 The APK contains no AI model, Telegram token, database credentials or private
 Jarwis source code. It connects only to the owner's Jarwis Web server on a
 private IPv4 network. The server still requires its temporary pairing code and
 signed session cookie.
+
+The phone and the Jarwis PC must currently be connected to the same private
+Wi-Fi network. Remote access outside the home network is not part of version
+1.0.0.
 
 ## Build
 
@@ -24,5 +30,5 @@ and SDK:
 gradle :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The public download page is served from `docs/`. Tagged builds publish the
-installable APK as `Jarwis.apk` in GitHub Releases.
+The public download page is served from `docs/`. Releases publish the
+installable APK as `Jarwis.apk` and its SHA-256 checksum.
