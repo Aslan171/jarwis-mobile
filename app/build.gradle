@@ -1,0 +1,76 @@
+plugins {
+    id "com.android.application"
+}
+
+def keystorePath = System.getenv("JARWIS_KEYSTORE_PATH")
+def keystorePassword = System.getenv("JARWIS_KEYSTORE_PASSWORD")
+def keyAliasValue = System.getenv("JARWIS_KEY_ALIAS")
+def keyPasswordValue = System.getenv("JARWIS_KEY_PASSWORD")
+def releaseSigningReady = keystorePath && keystorePassword && keyAliasValue && keyPasswordValue
+
+android {
+    namespace "com.vexsento.jarwis"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.vexsento.jarwis"
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName "1.0.0"
+
+        testInstrumentationRunner "android.test.InstrumentationTestRunner"
+    }
+
+    signingConfigs {
+        release {
+            if (releaseSigningReady) {
+                storeFile file(keystorePath)
+                storePassword keystorePassword
+                keyAlias keyAliasValue
+                keyPassword keyPasswordValue
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.release
+            }
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    testImplementation "junit:junit:4.13.2"
+}
+
+tasks.register("verifyReleaseSigning") {
+    doLast {
+        if (!releaseSigningReady) {
+            throw new GradleException("Release signing environment is incomplete")
+        }
+    }
+}
+
+tasks.named("assembleRelease").configure {
+    dependsOn("verifyReleaseSigning")
+}
+
