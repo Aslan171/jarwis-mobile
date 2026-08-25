@@ -147,6 +147,16 @@
             android:layout_height="match_parent"
             android:background="@color/black" />
 
+        <View
+            android:id="@+id/native_send_hit_target"
+            android:layout_width="1dp"
+            android:layout_height="1dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:contentDescription="@string/native_send"
+            android:focusable="true"
+            android:visibility="gone" />
+
         <ImageButton
             android:id="@+id/server_settings_button"
             android:layout_width="44dp"

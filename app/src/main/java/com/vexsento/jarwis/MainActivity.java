@@ -14,10 +14,10 @@ import android.net.LinkProperties;
 import android.net.Network;
 import android.net.Uri;
 import android.os.Bundle;
-import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -28,6 +28,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -63,6 +64,7 @@ public final class MainActivity extends Activity {
     private SharedPreferences preferences;
     private View setupPanel;
     private View browserPanel;
+    private View nativeSendHitTarget;
     private WebView webView;
     private EditText addressInput;
     private TextView connectionStatus;
@@ -83,6 +85,7 @@ public final class MainActivity extends Activity {
         preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         setupPanel = findViewById(R.id.setup_panel);
         browserPanel = findViewById(R.id.browser_panel);
+        nativeSendHitTarget = findViewById(R.id.native_send_hit_target);
         webView = findViewById(R.id.web_view);
         addressInput = findViewById(R.id.server_address);
         connectionStatus = findViewById(R.id.connection_status);
@@ -93,6 +96,7 @@ public final class MainActivity extends Activity {
         ImageButton settingsButton = findViewById(R.id.server_settings_button);
 
         configureWebView();
+        nativeSendHitTarget.setOnClickListener(view -> submitComposerFromNative());
         qrScanButton.setOnClickListener(view -> startQrScanner());
         connectButton.setOnClickListener(view -> connectTo(addressInput.getText().toString(), false));
         scanButton.setOnClickListener(view -> startNetworkScan());
@@ -141,18 +145,77 @@ public final class MainActivity extends Activity {
         webView.setWebViewClient(new JarwisWebViewClient());
         webView.setWebChromeClient(new JarwisChromeClient());
         webView.setDownloadListener(new ExternalDownloadListener());
-        webView.setOnTouchListener((view, event) -> {
-            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
-                String url = webView.getUrl();
-                if (url != null && isCurrentOrigin(url)) {
-                    webView.evaluateJavascript(
-                            WebViewPagePatch.submitAtScreenPoint(event.getX(), event.getY()),
-                            null
-                    );
-                }
+        webView.addJavascriptInterface(new ComposerBridge(), "JarwisComposerBridge");
+    }
+
+    private void submitComposerFromNative() {
+        String url = webView.getUrl();
+        if (url == null || !isCurrentOrigin(url)) {
+            nativeSendHitTarget.setVisibility(View.GONE);
+            return;
+        }
+        webView.evaluateJavascript(WebViewPagePatch.submitDirectly(), result -> {
+            nativeSendHitTarget.setVisibility(View.GONE);
+            if (result != null && (result.contains("missing") || result.contains("error"))) {
+                Toast.makeText(this, "Jarwis could not submit this message", Toast.LENGTH_SHORT).show();
             }
-            return false;
         });
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private void updateNativeSendHitBox(
+            double leftRatio,
+            double topRatio,
+            double widthRatio,
+            double heightRatio,
+            boolean active
+    ) {
+        runOnUiThread(() -> {
+            String url = webView.getUrl();
+            if (!active || url == null || !isCurrentOrigin(url)
+                    || !Double.isFinite(leftRatio) || !Double.isFinite(topRatio)
+                    || !Double.isFinite(widthRatio) || !Double.isFinite(heightRatio)
+                    || leftRatio < 0.5 || leftRatio > 1.0 || topRatio < 0.5 || topRatio > 1.0
+                    || widthRatio <= 0 || widthRatio > 0.25 || heightRatio <= 0 || heightRatio > 0.25) {
+                nativeSendHitTarget.setVisibility(View.GONE);
+                return;
+            }
+            int webWidth = webView.getWidth();
+            int webHeight = webView.getHeight();
+            if (webWidth <= 0 || webHeight <= 0 || widthRatio <= 0 || heightRatio <= 0) {
+                nativeSendHitTarget.setVisibility(View.GONE);
+                return;
+            }
+            int padding = dp(5);
+            int left = Math.max(0, (int) Math.round(leftRatio * webWidth) - padding);
+            int top = Math.max(0, (int) Math.round(topRatio * webHeight) - padding);
+            int width = Math.min(dp(72), Math.max(dp(44), (int) Math.round(widthRatio * webWidth) + padding * 2));
+            int height = Math.min(dp(72), Math.max(dp(44), (int) Math.round(heightRatio * webHeight) + padding * 2));
+            width = Math.min(width, webWidth - left);
+            height = Math.min(height, webHeight - top);
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
+            params.leftMargin = left;
+            params.topMargin = top;
+            nativeSendHitTarget.setLayoutParams(params);
+            nativeSendHitTarget.bringToFront();
+            nativeSendHitTarget.setVisibility(View.VISIBLE);
+        });
+    }
+
+    private final class ComposerBridge {
+        @JavascriptInterface
+        public void updateSendHitBox(
+                double leftRatio,
+                double topRatio,
+                double widthRatio,
+                double heightRatio,
+                boolean active
+        ) {
+            updateNativeSendHitBox(leftRatio, topRatio, widthRatio, heightRatio, active);
+        }
     }
 
     private void connectTo(String rawAddress, boolean quietFailure) {
@@ -390,6 +453,7 @@ public final class MainActivity extends Activity {
 
     private void openJarwis(String normalizedUrl) {
         cancelScan();
+        nativeSendHitTarget.setVisibility(View.GONE);
         currentBaseUrl = normalizedUrl;
         preferences.edit().putString(PREF_SERVER_URL, normalizedUrl).apply();
         addressInput.setText(normalizedUrl);
@@ -401,6 +465,7 @@ public final class MainActivity extends Activity {
 
     private void showSetup(String message) {
         setBusy(false, message);
+        nativeSendHitTarget.setVisibility(View.GONE);
         browserPanel.setVisibility(View.GONE);
         setupPanel.setVisibility(View.VISIBLE);
         qrScanButton.setEnabled(true);

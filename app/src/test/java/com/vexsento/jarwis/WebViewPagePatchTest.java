@@ -16,12 +16,17 @@ public final class WebViewPagePatchTest {
         assertTrue(script.contains("window.__jarwisNativeSubmitAt"));
         assertTrue(script.contains("form.requestSubmit()"));
         assertTrue(script.contains("passive:false"));
+        assertTrue(script.contains("JarwisComposerBridge.updateSendHitBox"));
+        assertTrue(script.contains("new ResizeObserver(publishHitBox)"));
     }
 
     @Test
-    public void screenPointFallbackCallsInjectedNativeSubmitter() {
-        String script = WebViewPagePatch.submitAtScreenPoint(101.5f, 202.25f);
+    public void nativeOverlaySubmitsWithoutCoordinateDependency() {
+        String script = WebViewPagePatch.submitDirectly();
 
-        assertTrue(script.contains("window.__jarwisNativeSubmitAt(101.5,202.25)"));
+        assertTrue(script.contains("window.jarwisSubmitComposer"));
+        assertTrue(script.contains("form.requestSubmit()"));
+        assertTrue(script.contains("return 'submitted'"));
+        assertTrue(script.contains("return 'missing'"));
     }
 }

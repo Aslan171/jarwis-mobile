@@ -11,4 +11,5 @@
     <string name="scan_again">Найти адрес ПК</string>
     <string name="change_server">Сменить компьютер</string>
     <string name="security_note">Адрес и защищённая сессия хранятся только на этом телефоне.</string>
+    <string name="native_send">Отправить сообщение</string>
 </resources>

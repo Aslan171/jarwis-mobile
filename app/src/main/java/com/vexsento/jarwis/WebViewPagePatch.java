@@ -15,6 +15,16 @@ final class WebViewPagePatch {
                 + "button.style.touchAction='manipulation';"
                 + "button.dataset.jarwisNativeSend='1';"
                 + "var lastSubmitAt=0;"
+                + "function publishHitBox(){"
+                + "var r=button.getBoundingClientRect();"
+                + "var vw=window.innerWidth||document.documentElement.clientWidth||1;"
+                + "var vh=window.innerHeight||document.documentElement.clientHeight||1;"
+                + "var style=window.getComputedStyle(button);"
+                + "var visible=r.width>0&&r.height>0&&style.display!=='none'&&style.visibility!=='hidden';"
+                + "var active=visible&&!!input.value.trim();"
+                + "if(window.JarwisComposerBridge&&typeof window.JarwisComposerBridge.updateSendHitBox==='function')"
+                + "window.JarwisComposerBridge.updateSendHitBox(r.left/vw,r.top/vh,r.width/vw,r.height/vh,active);"
+                + "}"
                 + "function submit(event){"
                 + "if(!input.value.trim()||Date.now()-lastSubmitAt<700)return false;"
                 + "lastSubmitAt=Date.now();"
@@ -24,6 +34,7 @@ final class WebViewPagePatch {
                 + "else if(typeof window.sendMessage==='function')window.sendMessage();"
                 + "else if(typeof form.requestSubmit==='function')form.requestSubmit();"
                 + "else form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));"
+                + "setTimeout(publishHitBox,0);"
                 + "return true;"
                 + "}"
                 + "function hit(x,y){var r=button.getBoundingClientRect(),m=12;"
@@ -33,17 +44,29 @@ final class WebViewPagePatch {
                 + "function capture(event){var p=point(event);if(p&&hit(p.clientX,p.clientY))submit(event);}"
                 + "document.addEventListener('touchstart',capture,{capture:true,passive:false});"
                 + "button.addEventListener('click',submit,true);"
+                + "input.addEventListener('input',publishHitBox);"
+                + "window.addEventListener('resize',publishHitBox,{passive:true});"
+                + "document.addEventListener('click',function(){setTimeout(publishHitBox,0);},true);"
+                + "if(typeof ResizeObserver==='function')new ResizeObserver(publishHitBox).observe(button);"
+                + "window.jarwisRefreshNativeComposerHitBox=publishHitBox;"
                 + "window.__jarwisNativeSubmitAt=function(rawX,rawY){"
                 + "var ratio=window.devicePixelRatio||1;"
                 + "return (hit(rawX,rawY)||hit(rawX/ratio,rawY/ratio))?submit(null):false;"
                 + "};"
+                + "setTimeout(publishHitBox,0);"
                 + "return true;"
                 + "})()";
     }
 
-    static String submitAtScreenPoint(float x, float y) {
-        return "(function(){return typeof window.__jarwisNativeSubmitAt==='function'"
-                + "?window.__jarwisNativeSubmitAt(" + Float.toString(x) + "," + Float.toString(y) + ")"
-                + ":false;})()";
+    static String submitDirectly() {
+        return "(function(){try{"
+                + "var input=document.getElementById('message-input');"
+                + "var form=document.getElementById('composer-form');"
+                + "if(!input||!form)return 'missing';"
+                + "if(!input.value.trim()){input.focus();return 'empty';}"
+                + "if(typeof window.jarwisSubmitComposer==='function'){window.jarwisSubmitComposer();return 'submitted';}"
+                + "if(typeof form.requestSubmit==='function'){form.requestSubmit();return 'submitted';}"
+                + "form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));return 'submitted';"
+                + "}catch(error){return 'error';}})()";
     }
 }
