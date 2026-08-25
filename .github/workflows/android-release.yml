@@ -67,4 +67,3 @@ jobs:
           Jarwis.apk Jarwis.apk.sha256
           --title "Jarwis 1.0 for Android"
           --notes "Signed Android client for Jarwis 1.0. Android 8.0 or newer."
-

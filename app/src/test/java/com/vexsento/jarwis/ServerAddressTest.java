@@ -35,4 +35,3 @@ public final class ServerAddressTest {
         assertFalse(ServerAddress.isPrivateIpv4("149.40.51.230"));
     }
 }
-

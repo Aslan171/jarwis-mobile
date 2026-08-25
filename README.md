@@ -26,4 +26,3 @@ gradle :app:testDebugUnitTest :app:assembleDebug
 
 The public download page is served from `docs/`. Tagged builds publish the
 installable APK as `Jarwis.apk` in GitHub Releases.
-

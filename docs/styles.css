@@ -80,4 +80,3 @@ footer a { text-underline-offset: 4px; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 }
-
