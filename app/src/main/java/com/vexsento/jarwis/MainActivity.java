@@ -123,15 +123,19 @@ public final class MainActivity extends Activity {
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setDatabaseEnabled(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " JarwisAndroid/1.1");
+        settings.setUserAgentString(
+                settings.getUserAgentString() + " JarwisAndroid/" + BuildConfig.VERSION_NAME
+        );
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
+        webView.clearCache(true);
         webView.setBackgroundColor(Color.BLACK);
         webView.setWebViewClient(new JarwisWebViewClient());
         webView.setWebChromeClient(new JarwisChromeClient());
@@ -379,7 +383,7 @@ public final class MainActivity extends Activity {
         setupPanel.setVisibility(View.GONE);
         browserPanel.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.VISIBLE);
-        webView.loadUrl(normalizedUrl);
+        webView.loadUrl(normalizedUrl + "?native=" + BuildConfig.VERSION_CODE);
     }
 
     private void showSetup(String message) {
@@ -470,6 +474,9 @@ public final class MainActivity extends Activity {
         @Override
         public void onPageFinished(WebView view, String url) {
             progressBar.setVisibility(View.GONE);
+            if (isCurrentOrigin(url)) {
+                view.evaluateJavascript(WebViewPagePatch.mobileComposerFallback(), null);
+            }
         }
 
         @Override

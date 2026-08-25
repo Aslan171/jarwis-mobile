@@ -12,12 +12,16 @@ android {
     namespace "com.vexsento.jarwis"
     compileSdk 36
 
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId "com.vexsento.jarwis"
         minSdk 26
         targetSdk 36
-        versionCode 3
-        versionName "1.2.0"
+        versionCode 4
+        versionName "1.2.1"
 
         testInstrumentationRunner "android.test.InstrumentationTestRunner"
     }
