@@ -12,6 +12,7 @@ import android.net.ConnectivityManager;
 import android.net.LinkAddress;
 import android.net.LinkProperties;
 import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
@@ -48,6 +49,10 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -345,40 +350,42 @@ public final class MainActivity extends Activity {
 
     private void startNetworkScan() {
         cancelScan();
-        String prefix = localIpv4Prefix();
-        if (prefix.isEmpty()) {
+        List<String> prefixes = localIpv4Prefixes();
+        if (prefixes.isEmpty()) {
             showSetup("Не удалось определить локальную IPv4 сеть. Введи адрес ПК вручную.");
             return;
         }
 
-        setBusy(true, "Ищу Jarwis в сети " + prefix + "0/24…");
+        setBusy(true, "Ищу Jarwis во всех локальных сетях…");
         scanButton.setEnabled(false);
         scanExecutor = Executors.newFixedThreadPool(32);
         AtomicBoolean found = new AtomicBoolean(false);
-        AtomicInteger remaining = new AtomicInteger(254);
+        AtomicInteger remaining = new AtomicInteger(prefixes.size() * 254);
 
-        for (int suffix = 1; suffix <= 254; suffix++) {
-            final String candidate = "http://" + prefix + suffix + ":" + ServerAddress.DEFAULT_PORT + "/";
-            scanExecutor.submit(() -> {
-                try {
-                    if (!found.get() && probeJarwis(candidate) && found.compareAndSet(false, true)) {
-                        runOnUiThread(() -> {
-                            addressInput.setText(candidate);
-                            showSetup("Компьютер найден. Для защищённого входа нажми «Сканировать QR».");
-                            cancelScan();
-                        });
+        for (String prefix : prefixes) {
+            for (int suffix = 1; suffix <= 254; suffix++) {
+                final String candidate = "http://" + prefix + suffix + ":" + ServerAddress.DEFAULT_PORT + "/";
+                scanExecutor.submit(() -> {
+                    try {
+                        if (!found.get() && probeJarwis(candidate) && found.compareAndSet(false, true)) {
+                            runOnUiThread(() -> {
+                                addressInput.setText(candidate);
+                                showSetup("Компьютер найден. Для защищённого входа нажми «Сканировать QR».");
+                                cancelScan();
+                            });
+                        }
+                    } finally {
+                        if (remaining.decrementAndGet() == 0 && !found.get()) {
+                            runOnUiThread(() -> {
+                                cancelScan();
+                                showSetup(
+                                        "Jarwis не найден. Запусти мобильный режим на ПК и проверь, что Wi-Fi не изолирует устройства."
+                                );
+                            });
+                        }
                     }
-                } finally {
-                    if (remaining.decrementAndGet() == 0 && !found.get()) {
-                        runOnUiThread(() -> {
-                            cancelScan();
-                            showSetup(
-                                    "Jarwis не найден. Запусти мобильный режим на ПК и введи показанный IPv4 адрес вручную."
-                            );
-                        });
-                    }
-                }
-            });
+                });
+            }
         }
     }
 
@@ -433,22 +440,39 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private String localIpv4Prefix() {
+    private List<String> localIpv4Prefixes() {
         ConnectivityManager manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         Network activeNetwork = manager.getActiveNetwork();
-        LinkProperties properties = activeNetwork == null ? null : manager.getLinkProperties(activeNetwork);
-        if (properties == null) {
-            return "";
-        }
-        for (LinkAddress linkAddress : properties.getLinkAddresses()) {
-            InetAddress address = linkAddress.getAddress();
-            String host = address.getHostAddress();
-            if (address instanceof Inet4Address && ServerAddress.isPrivateIpv4(host) && !host.startsWith("127.")) {
-                int split = host.lastIndexOf('.');
-                return split > 0 ? host.substring(0, split + 1) : "";
+        Network[] allNetworks = manager.getAllNetworks();
+        Set<Network> orderedNetworks = new LinkedHashSet<>();
+
+        for (Network network : allNetworks) {
+            NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
+            if (capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                orderedNetworks.add(network);
             }
         }
-        return "";
+        if (activeNetwork != null) {
+            orderedNetworks.add(activeNetwork);
+        }
+        for (Network network : allNetworks) {
+            orderedNetworks.add(network);
+        }
+
+        List<String> hostAddresses = new ArrayList<>();
+        for (Network network : orderedNetworks) {
+            LinkProperties properties = manager.getLinkProperties(network);
+            if (properties == null) {
+                continue;
+            }
+            for (LinkAddress linkAddress : properties.getLinkAddresses()) {
+                InetAddress address = linkAddress.getAddress();
+                if (address instanceof Inet4Address) {
+                    hostAddresses.add(address.getHostAddress());
+                }
+            }
+        }
+        return LocalNetworkPrefixes.fromHostAddresses(hostAddresses);
     }
 
     private void openJarwis(String normalizedUrl) {
