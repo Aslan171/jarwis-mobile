@@ -1,5 +1,6 @@
 package com.vexsento.jarwis;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -28,5 +29,13 @@ public final class WebViewPagePatchTest {
         assertTrue(script.contains("form.requestSubmit()"));
         assertTrue(script.contains("return 'submitted'"));
         assertTrue(script.contains("return 'missing'"));
+    }
+
+    @Test
+    public void successfulNativeSubmitKeepsHitTargetUntilWebStateRefreshesIt() {
+        assertFalse(MainActivity.nativeSubmitFailed("\"submitted\""));
+        assertFalse(MainActivity.nativeSubmitFailed("\"empty\""));
+        assertTrue(MainActivity.nativeSubmitFailed("\"missing\""));
+        assertTrue(MainActivity.nativeSubmitFailed("\"error\""));
     }
 }

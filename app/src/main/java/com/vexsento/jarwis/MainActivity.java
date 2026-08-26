@@ -160,11 +160,15 @@ public final class MainActivity extends Activity {
             return;
         }
         webView.evaluateJavascript(WebViewPagePatch.submitDirectly(), result -> {
-            nativeSendHitTarget.setVisibility(View.GONE);
-            if (result != null && (result.contains("missing") || result.contains("error"))) {
+            if (nativeSubmitFailed(result)) {
+                nativeSendHitTarget.setVisibility(View.GONE);
                 Toast.makeText(this, "Jarwis could not submit this message", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    static boolean nativeSubmitFailed(String result) {
+        return result != null && (result.contains("missing") || result.contains("error"));
     }
 
     private int dp(int value) {
